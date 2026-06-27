@@ -162,13 +162,13 @@ export default function UploadData({ user, setUser }) {
                 <Card.Body>
                   <Card.Title className="fs-3 fw-bold mb-3">Upload Data <span className="text-gradient">Engine</span></Card.Title>
                   <Card.Text className="text-muted">
-                    Securely inject new enterprise datasets (.csv) into the analytical engine.
+                    Securely inject new enterprise datasets (.csv, .xlsx) into the analytical engine.
                   </Card.Text>
                   {status && <Alert variant={status.includes('success') ? 'success' : 'danger'}>{status}</Alert>}
                   <Form onSubmit={handleUpload}>
                     <Form.Group className="mb-4">
                       <Form.Label>Select CSV/Excel File</Form.Label>
-                      <Form.Control type="file" onChange={e => setFile(e.target.files[0])} accept=".csv, .xlsx" />
+                      <Form.Control type="file" onChange={e => setFile(e.target.files[0])} accept=".csv, .xlsx, .xls" />
                     </Form.Group>
                     <Form.Group className="mb-4">
                       <Form.Label>Target Location / Branch</Form.Label>
@@ -271,8 +271,8 @@ export default function UploadData({ user, setUser }) {
           <Modal.Body className="bg-dark text-white">
             {editStatus && <Alert variant="danger">{editStatus}</Alert>}
             <Form.Group className="mb-3">
-              <Form.Label>Select New CSV File</Form.Label>
-              <Form.Control type="file" onChange={e => setEditFile(e.target.files[0])} accept=".csv" required />
+              <Form.Label>Select New CSV/Excel File</Form.Label>
+              <Form.Control type="file" onChange={e => setEditFile(e.target.files[0])} accept=".csv, .xlsx, .xls" required />
             </Form.Group>
             {editUploading && <ProgressBar animated now={100} variant="info" className="mt-2" />}
           </Modal.Body>

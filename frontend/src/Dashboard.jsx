@@ -157,7 +157,7 @@ export default function Dashboard({ user, setUser }) {
             </Form.Select>
             <input 
               type="file" 
-              accept=".csv" 
+              accept=".csv, .xlsx, .xls" 
               style={{ display: 'none' }} 
               ref={fileInputRef} 
               onChange={handleTempUpload} 

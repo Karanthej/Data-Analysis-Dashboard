@@ -11,6 +11,13 @@ import shutil
 import uuid
 from dotenv import load_dotenv
 
+def load_df(filepath, **kwargs):
+    if filepath.endswith('.csv'):
+        return pd.read_csv(filepath, **kwargs)
+    elif filepath.endswith(('.xlsx', '.xls')):
+        return pd.read_excel(filepath, **kwargs)
+    raise ValueError("Unsupported file format")
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -274,7 +281,7 @@ def upload_data(current_user):
         clearance_level = int(request.form.get('clearance_level', 1))
         
         # Verify it's readable
-        df = pd.read_csv(filepath, nrows=5)
+        df = load_df(filepath, nrows=5)
         
         ds = Dataset(name=file.filename, filename=filename, assigned_location=assigned_location, department=department, clearance_level=clearance_level)
         db.session.add(ds)
@@ -332,8 +339,8 @@ def update_dataset(current_user, dataset_id):
     if file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
         
-    if not file.filename.endswith('.csv'):
-        return jsonify({'message': 'Only CSV files allowed'}), 400
+    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+        return jsonify({'message': 'Only CSV and Excel files allowed'}), 400
         
     try:
         # Overwrite the existing file
@@ -341,7 +348,7 @@ def update_dataset(current_user, dataset_id):
         file.save(filepath)
         
         # Verify it's readable
-        df = pd.read_csv(filepath, nrows=5)
+        df = load_df(filepath, nrows=5)
         
         # Update name
         ds.name = file.filename
@@ -359,17 +366,18 @@ def upload_temp_data(current_user):
     if file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
         
-    if not file.filename.endswith('.csv'):
-        return jsonify({'message': 'Only CSV files allowed'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ['.csv', '.xlsx', '.xls']:
+        return jsonify({'message': 'Only CSV and Excel files allowed'}), 400
         
     try:
         temp_id = f"temp_{uuid.uuid4().hex}"
-        filename = f"{temp_id}.csv"
+        filename = f"{temp_id}{ext}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
         
         # Verify it's readable
-        df = pd.read_csv(filepath, nrows=5)
+        df = load_df(filepath, nrows=5)
         
         return jsonify({
             'id': temp_id,
@@ -382,10 +390,14 @@ def upload_temp_data(current_user):
 @token_required
 def get_insights(current_user, dataset_id):
     if str(dataset_id).startswith('temp_'):
-        filename = f"{dataset_id}.csv"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        if not os.path.exists(filepath):
+        filename = None
+        for ext in ['.csv', '.xlsx', '.xls']:
+            if os.path.exists(os.path.join(UPLOAD_FOLDER, f"{dataset_id}{ext}")):
+                filename = f"{dataset_id}{ext}"
+                break
+        if not filename:
             return jsonify({'message': 'Temporary file missing or expired'}), 404
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
     else:
         ds = Dataset.query.get(dataset_id)
         if not ds:
@@ -397,7 +409,7 @@ def get_insights(current_user, dataset_id):
         
     try:
         # Load dataset
-        df = pd.read_csv(filepath)
+        df = load_df(filepath)
         df = df.dropna(how='all')
         
         # Apply filters from query params
@@ -523,10 +535,14 @@ def get_insights(current_user, dataset_id):
 @token_required
 def get_filters(current_user, dataset_id):
     if str(dataset_id).startswith('temp_'):
-        filename = f"{dataset_id}.csv"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        if not os.path.exists(filepath):
+        filename = None
+        for ext in ['.csv', '.xlsx', '.xls']:
+            if os.path.exists(os.path.join(UPLOAD_FOLDER, f"{dataset_id}{ext}")):
+                filename = f"{dataset_id}{ext}"
+                break
+        if not filename:
             return jsonify({'message': 'Temporary file missing or expired'}), 404
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
     else:
         ds = Dataset.query.get(dataset_id)
         if not ds:
@@ -537,7 +553,7 @@ def get_filters(current_user, dataset_id):
         return jsonify({'message': 'File missing'}), 404
         
     try:
-        df = pd.read_csv(filepath)
+        df = load_df(filepath)
         df = df.dropna(how='all')
         
         filters = []
@@ -574,10 +590,14 @@ def perform_audit(current_user, dataset_id):
         return jsonify({'message': 'Permission denied for this audit action'}), 403
         
     if str(dataset_id).startswith('temp_'):
-        filename = f"{dataset_id}.csv"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        if not os.path.exists(filepath):
+        filename = None
+        for ext in ['.csv', '.xlsx', '.xls']:
+            if os.path.exists(os.path.join(UPLOAD_FOLDER, f"{dataset_id}{ext}")):
+                filename = f"{dataset_id}{ext}"
+                break
+        if not filename:
             return jsonify({'message': 'Temporary file missing or expired'}), 404
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
         ds_name = f"Temporary Dataset: {dataset_id}"
     else:
         ds = Dataset.query.get(dataset_id)
@@ -596,7 +616,7 @@ def perform_audit(current_user, dataset_id):
         return jsonify({'message': 'File missing'}), 404
         
     try:
-        df = pd.read_csv(filepath)
+        df = load_df(filepath)
         df = df.dropna(how='all')
         
         result_text = ""
