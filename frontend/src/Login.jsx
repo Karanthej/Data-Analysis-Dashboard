@@ -58,7 +58,11 @@ export default function Login({ setUser }) {
         navigate('/dashboard')
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'An error occurred')
+      if (!err.response) {
+        setError('Cannot connect to the server. Please ensure the backend is running.')
+      } else {
+        setError(err.response?.data?.message || 'An error occurred')
+      }
     }
     setLoading(false)
   }
