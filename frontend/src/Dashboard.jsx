@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Container, Row, Col, Card, Navbar, Nav, Button, Form } from 'react-bootstrap'
+import { Container, Row, Col, Card, Button, Form, Modal } from 'react-bootstrap'
 import Plot from 'react-plotly.js'
 import axios from 'axios'
 import { API_BASE_URL } from './config'
+import AppNavbar from './components/AppNavbar'
 
 export default function Dashboard({ user, setUser }) {
   const navigate = useNavigate()
@@ -17,6 +18,23 @@ export default function Dashboard({ user, setUser }) {
   
   const [availableFilters, setAvailableFilters] = useState([])
   const [selectedFilters, setSelectedFilters] = useState({})
+  const [auditModal, setAuditModal] = useState({ show: false, title: '', content: '' })
+
+  const executeAudit = async (actionName, displayTitle) => {
+    if (!selectedDatasetId) {
+      alert("Please select a dataset first.");
+      return;
+    }
+    setAuditModal({ show: true, title: displayTitle, content: 'Running audit...' })
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/audit/${selectedDatasetId}`, { action: actionName }, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
+      setAuditModal({ show: true, title: displayTitle, content: res.data.result })
+    } catch (err) {
+      setAuditModal({ show: true, title: 'Error', content: err.response?.data?.message || 'Failed to execute audit' })
+    }
+  }
 
   // 1. Fetch available datasets on load
   useEffect(() => {
@@ -83,13 +101,6 @@ export default function Dashboard({ user, setUser }) {
     fetchInsights()
   }, [selectedDatasetId, user.token, selectedFilters])
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    setUser(null)
-    navigate('/login')
-  }
-
   const formatValue = (val) => {
     if (typeof val === 'number') {
       if (val % 1 !== 0) return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -102,35 +113,18 @@ export default function Dashboard({ user, setUser }) {
     <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar className="custom-navbar" variant="dark" expand="lg">
-          <Container fluid>
-            <Navbar.Brand href="#" className="d-flex align-items-center">
-              <img src="/logo.png" alt="Logo" style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '8px', marginRight: '12px', backgroundColor: 'white', padding: '2px' }} />
-              <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1.2rem' }}>Data Analysis Dashboard</span>
-            </Navbar.Brand>
-            <Nav className="me-auto">
-              <Nav.Link as={Link} to="/dashboard">Home</Nav.Link>
-              {user.permissions?.includes('can_upload_data') && <Nav.Link as={Link} to="/upload">Upload Data</Nav.Link>}
-              {user.permissions?.includes('can_manage_users') && <Nav.Link as={Link} to="/users">Manage Users</Nav.Link>}
-            </Nav>
-            
-            <Form.Select 
-              value={selectedDatasetId || ''} 
-              onChange={(e) => setSelectedDatasetId(e.target.value)}
-              className="w-auto me-4"
-              style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)' }}
-            >
-              {datasets.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </Form.Select>
-            
-            <Navbar.Text className="me-3">
-              Signed in as: <span className="fw-bold text-info">{user.username}</span> <span className="text-muted">({user.role})</span>
-            </Navbar.Text>
-            <Button variant="outline-primary" size="sm" onClick={handleLogout}>Logout</Button>
-          </Container>
-        </Navbar>
+        <AppNavbar user={user} setUser={setUser}>
+          <Form.Select 
+            value={selectedDatasetId || ''} 
+            onChange={(e) => setSelectedDatasetId(e.target.value)}
+            className="w-auto me-4"
+            style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)' }}
+          >
+            {datasets.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </Form.Select>
+        </AppNavbar>
 
         <Container fluid className="mt-5 px-4">
           <Row className="mb-4">
@@ -150,13 +144,13 @@ export default function Dashboard({ user, setUser }) {
                   <Card.Body>
                     <Card.Title className="text-warning fw-bold mb-3">Auditor Control Panel</Card.Title>
                     <div className="d-flex flex-wrap gap-2">
-                      {user.permissions?.includes('can_assess_risk') && <Button variant="outline-warning" size="sm" onClick={() => alert('Assessing risk...')}>Assess risk: Spot weak areas</Button>}
-                      {user.permissions?.includes('can_test_controls') && <Button variant="outline-warning" size="sm" onClick={() => alert('Testing controls...')}>Test controls: Verify rules work</Button>}
-                      {user.permissions?.includes('can_gather_evidence') && <Button variant="outline-warning" size="sm" onClick={() => alert('Gathering evidence...')}>Gather evidence: Check bank balances</Button>}
-                      {user.permissions?.includes('can_verify_accuracy') && <Button variant="outline-warning" size="sm" onClick={() => alert('Verifying accuracy...')}>Verify accuracy: Recalculate financial data</Button>}
-                      {user.permissions?.includes('can_ensure_compliance') && <Button variant="outline-warning" size="sm" onClick={() => alert('Ensuring compliance...')}>Ensure compliance: Follow current laws</Button>}
-                      {user.permissions?.includes('can_issue_opinion') && <Button variant="outline-warning" size="sm" onClick={() => alert('Issuing opinion...')}>Issue opinion: Certify data fairness</Button>}
-                      {user.permissions?.includes('can_report_findings') && <Button variant="outline-warning" size="sm" onClick={() => alert('Reporting findings...')}>Report findings: Inform company management</Button>}
+                      {user.permissions?.includes('can_assess_risk') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_assess_risk', 'Risk Assessment')}>Assess risk: Spot weak areas</Button>}
+                      {user.permissions?.includes('can_test_controls') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_test_controls', 'Test Controls')}>Test controls: Verify rules work</Button>}
+                      {user.permissions?.includes('can_gather_evidence') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_gather_evidence', 'Financial Evidence')}>Gather evidence: Check bank balances</Button>}
+                      {user.permissions?.includes('can_verify_accuracy') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_verify_accuracy', 'Verify Accuracy')}>Verify accuracy: Recalculate financial data</Button>}
+                      {user.permissions?.includes('can_ensure_compliance') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_ensure_compliance', 'Compliance Check')}>Ensure compliance: Follow current laws</Button>}
+                      {user.permissions?.includes('can_issue_opinion') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_issue_opinion', 'Auditor Opinion')}>Issue opinion: Certify data fairness</Button>}
+                      {user.permissions?.includes('can_report_findings') && <Button variant="outline-warning" size="sm" onClick={() => executeAudit('can_report_findings', 'Final Report')}>Report findings: Inform company management</Button>}
                     </div>
                   </Card.Body>
                 </Card>
@@ -291,6 +285,19 @@ export default function Dashboard({ user, setUser }) {
           </>
         )}
       </Container>
+      
+      <Modal show={auditModal.show} onHide={() => setAuditModal({...auditModal, show: false})} centered size="lg">
+        <Modal.Header closeButton className="bg-dark text-white border-bottom-0">
+          <Modal.Title className="text-warning fw-bold">{auditModal.title}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-dark text-white pt-4 pb-4" style={{ whiteSpace: 'pre-line', fontSize: '1.1rem' }}>
+          {auditModal.content}
+        </Modal.Body>
+        <Modal.Footer className="bg-dark border-top-0">
+          <Button variant="outline-light" onClick={() => setAuditModal({...auditModal, show: false})}>Close</Button>
+        </Modal.Footer>
+      </Modal>
+
       </div>
     </div>
   )

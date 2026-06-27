@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Container, Navbar, Nav, Card, Form, Button, Alert, ProgressBar, Row, Col, Table } from 'react-bootstrap'
+import { Container, Card, Form, Button, Alert, ProgressBar, Row, Col, Table, Modal } from 'react-bootstrap'
 import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 import { API_BASE_URL } from './config'
+import AppNavbar from './components/AppNavbar'
 
 export default function UploadData({ user, setUser }) {
   const navigate = useNavigate()
@@ -14,6 +15,64 @@ export default function UploadData({ user, setUser }) {
   const [uploading, setUploading] = useState(false)
   const [datasets, setDatasets] = useState([])
   const [deleteError, setDeleteError] = useState('')
+  
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editDatasetId, setEditDatasetId] = useState(null)
+  const [editFile, setEditFile] = useState(null)
+  const [editUploading, setEditUploading] = useState(false)
+  const [editStatus, setEditStatus] = useState('')
+
+  const handleDownload = async (id, name) => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/datasets/${id}/download`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', name)
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode.removeChild(link)
+    } catch (err) {
+      setDeleteError('Error downloading dataset')
+    }
+  }
+
+  const openEditModal = (id) => {
+    setEditDatasetId(id)
+    setEditFile(null)
+    setEditStatus('')
+    setShowEditModal(true)
+  }
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault()
+    if (!editFile) {
+      setEditStatus('Please select a file first.')
+      return
+    }
+    const formData = new FormData()
+    formData.append('file', editFile)
+
+    setEditUploading(true)
+    setEditStatus('')
+
+    try {
+      await axios.put(`${API_BASE_URL}/api/datasets/${editDatasetId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${user.token}`
+        }
+      })
+      setShowEditModal(false)
+      fetchDatasets()
+    } catch (err) {
+      setEditStatus(err.response?.data?.message || 'Error updating dataset')
+    }
+    setEditUploading(false)
+  }
 
   useEffect(() => {
     fetchDatasets()
@@ -74,14 +133,6 @@ export default function UploadData({ user, setUser }) {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    localStorage.removeItem('username')
-    setUser(null)
-    navigate('/login')
-  }
-
   return (
     <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
       {/* Background Floating Elements */}
@@ -101,23 +152,7 @@ export default function UploadData({ user, setUser }) {
         }}
       />
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar className="custom-navbar" variant="dark" expand="lg">
-          <Container fluid>
-            <Navbar.Brand href="#" className="d-flex align-items-center">
-              <img src="/logo.png" alt="Logo" style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '8px', marginRight: '12px', backgroundColor: 'white', padding: '2px' }} />
-              <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1.2rem' }}>Data Analysis Dashboard</span>
-            </Navbar.Brand>
-            <Nav className="me-auto">
-              <Nav.Link as={Link} to="/dashboard">Home</Nav.Link>
-              {user.permissions?.includes('can_upload_data') && <Nav.Link as={Link} to="/upload">Upload Data</Nav.Link>}
-              {user.permissions?.includes('can_manage_users') && <Nav.Link as={Link} to="/users">Manage Users</Nav.Link>}
-            </Nav>
-            <Navbar.Text className="me-3">
-              Signed in as: <span className="fw-bold text-info">{user.username}</span> <span className="text-muted">({user.role})</span>
-            </Navbar.Text>
-            <Button variant="outline-primary" size="sm" onClick={handleLogout}>Logout</Button>
-          </Container>
-        </Navbar>
+        <AppNavbar user={user} setUser={setUser} />
 
         <Container className="mt-5">
           <Row>
@@ -180,14 +215,36 @@ export default function UploadData({ user, setUser }) {
                           <td>{d.id}</td>
                           <td>{d.name}</td>
                           <td>
-                            <Button 
-                              variant="danger" 
-                              size="sm" 
-                              onClick={() => handleDelete(d.id)}
-                              style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
-                            >
-                              Delete Data
-                            </Button>
+                            <div className="d-flex gap-2">
+                              {user.permissions?.includes('can_download_data') && (
+                                <Button 
+                                  variant="outline-success" 
+                                  size="sm" 
+                                  onClick={() => handleDownload(d.id, d.name)}
+                                >
+                                  Download
+                                </Button>
+                              )}
+                              {user.permissions?.includes('can_edit_data') && (
+                                <Button 
+                                  variant="outline-info" 
+                                  size="sm" 
+                                  onClick={() => openEditModal(d.id)}
+                                >
+                                  Replace
+                                </Button>
+                              )}
+                              {user.permissions?.includes('can_delete_data') && (
+                                <Button 
+                                  variant="danger" 
+                                  size="sm" 
+                                  onClick={() => handleDelete(d.id)}
+                                  style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -204,6 +261,30 @@ export default function UploadData({ user, setUser }) {
           </Row>
         </Container>
       </div>
+
+      {/* Edit Dataset Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
+        <Modal.Header closeButton className="bg-dark text-white border-bottom-0">
+          <Modal.Title>Replace Dataset File</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleEditSubmit}>
+          <Modal.Body className="bg-dark text-white">
+            {editStatus && <Alert variant="danger">{editStatus}</Alert>}
+            <Form.Group className="mb-3">
+              <Form.Label>Select New CSV File</Form.Label>
+              <Form.Control type="file" onChange={e => setEditFile(e.target.files[0])} accept=".csv" required />
+            </Form.Group>
+            {editUploading && <ProgressBar animated now={100} variant="info" className="mt-2" />}
+          </Modal.Body>
+          <Modal.Footer className="bg-dark border-top-0">
+            <Button variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={editUploading}>
+              {editUploading ? 'Uploading...' : 'Save & Replace'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
     </div>
   )
 }

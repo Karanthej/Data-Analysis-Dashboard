@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Container, Navbar, Nav, Card, Table, Button, Alert, Form, Row, Col } from 'react-bootstrap'
+import { Container, Card, Table, Button, Alert, Form, Row, Col, Modal } from 'react-bootstrap'
 import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 import { API_BASE_URL } from './config'
+import AppNavbar from './components/AppNavbar'
 
 export default function UserManagement({ user, setUser }) {
   const navigate = useNavigate()
@@ -19,6 +20,30 @@ export default function UserManagement({ user, setUser }) {
   const [newDepartment, setNewDepartment] = useState('Global')
   const [newClearanceLevel, setNewClearanceLevel] = useState(1)
   const [creating, setCreating] = useState(false)
+  
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+
+  const handleEditClick = (u) => {
+    setEditingUser({...u})
+    setShowEditModal(true)
+  }
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault()
+    try {
+      await axios.put(`${API_BASE_URL}/api/users/${editingUser.id}`, editingUser, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
+      setShowEditModal(false)
+      fetchUsers()
+      setSuccess('User successfully updated.')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error updating user')
+      setTimeout(() => setError(''), 3000)
+    }
+  }
 
   useEffect(() => {
     fetchUsers()
@@ -85,13 +110,6 @@ export default function UserManagement({ user, setUser }) {
     setCreating(false)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    setUser(null)
-    navigate('/login')
-  }
-
   return (
     <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
       {/* Background Floating Elements */}
@@ -111,23 +129,7 @@ export default function UserManagement({ user, setUser }) {
         }}
       />
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar className="custom-navbar" variant="dark" expand="lg">
-          <Container fluid>
-            <Navbar.Brand href="#" className="d-flex align-items-center">
-              <img src="/logo.png" alt="Logo" style={{ width: '45px', height: '45px', objectFit: 'contain', borderRadius: '8px', marginRight: '12px', backgroundColor: 'white', padding: '2px' }} />
-              <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1.2rem' }}>Data Analysis Dashboard</span>
-            </Navbar.Brand>
-            <Nav className="me-auto">
-              <Nav.Link as={Link} to="/dashboard">Home</Nav.Link>
-              {user.permissions?.includes('can_upload_data') && <Nav.Link as={Link} to="/upload">Upload Data</Nav.Link>}
-              {user.permissions?.includes('can_manage_users') && <Nav.Link as={Link} to="/users">Manage Users</Nav.Link>}
-            </Nav>
-            <Navbar.Text className="me-3">
-              Signed in as: <span className="fw-bold text-info">{user.username}</span> <span className="text-muted">({user.role})</span>
-            </Navbar.Text>
-            <Button variant="outline-primary" size="sm" onClick={handleLogout}>Logout</Button>
-          </Container>
-        </Navbar>
+        <AppNavbar user={user} setUser={setUser} />
 
         <Container className="mt-5">
           <Row>
@@ -170,15 +172,24 @@ export default function UserManagement({ user, setUser }) {
                           <td>{u.department || '-'}</td>
                           <td>{u.clearance_level || 1}</td>
                           <td>
-                            <Button 
-                              variant="danger" 
-                              size="sm" 
-                              disabled={u.username === user.username} // Can't delete self
-                              onClick={() => handleDelete(u.id)}
-                              style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
-                            >
-                              Revoke Access
-                            </Button>
+                            <div className="d-flex gap-2">
+                              <Button 
+                                variant="outline-info" 
+                                size="sm" 
+                                onClick={() => handleEditClick(u)}
+                              >
+                                Edit
+                              </Button>
+                              <Button 
+                                variant="danger" 
+                                size="sm" 
+                                disabled={u.username === user.username} // Can't delete self
+                                onClick={() => handleDelete(u.id)}
+                                style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444' }}
+                              >
+                                Revoke Access
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -242,6 +253,52 @@ export default function UserManagement({ user, setUser }) {
           </Row>
         </Container>
       </div>
+
+      {/* Edit User Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
+        <Modal.Header closeButton className="bg-dark text-white border-bottom-0">
+          <Modal.Title>Edit User: {editingUser?.username}</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleUpdateUser}>
+          <Modal.Body className="bg-dark text-white">
+            <Form.Group className="mb-3">
+              <Form.Label>Access Level</Form.Label>
+              <Form.Select 
+                value={editingUser?.role || ''} 
+                onChange={e => setEditingUser({...editingUser, role: e.target.value})}
+              >
+                <option value="User">User</option>
+                <option value="Auditor">Auditor</option>
+                <option value="Data Engineer">Data Engineer</option>
+                <option value="Manager">Manager</option>
+                <option value="Admin">Admin</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Job Role</Form.Label>
+              <Form.Control type="text" value={editingUser?.job_role || ''} onChange={e => setEditingUser({...editingUser, job_role: e.target.value})} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Location</Form.Label>
+              <Form.Control type="text" value={editingUser?.job_location || ''} onChange={e => setEditingUser({...editingUser, job_location: e.target.value})} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Department</Form.Label>
+              <Form.Control type="text" value={editingUser?.department || ''} onChange={e => setEditingUser({...editingUser, department: e.target.value})} required />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Clearance Level (1-5)</Form.Label>
+              <Form.Control type="number" min="1" max="5" value={editingUser?.clearance_level || 1} onChange={e => setEditingUser({...editingUser, clearance_level: parseInt(e.target.value)})} required />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer className="bg-dark border-top-0">
+            <Button variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">Save Changes</Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
     </div>
   )
 }
+

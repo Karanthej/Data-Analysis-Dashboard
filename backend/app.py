@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -43,10 +43,17 @@ class Dataset(db.Model):
     department = db.Column(db.String(50), nullable=True)
     clearance_level = db.Column(db.Integer, nullable=False, default=1)
 
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
 ROLE_PERMISSIONS = {
-    'Admin': ['can_view_data', 'can_upload_data', 'can_manage_users', 'can_delete_data'],
-    'Manager': ['can_view_data', 'can_upload_data'],
-    'Data Engineer': ['can_view_data', 'can_upload_data'],
+    'Admin': ['can_view_data', 'can_upload_data', 'can_manage_users', 'can_delete_data', 'can_download_data', 'can_edit_data'],
+    'Manager': ['can_view_data', 'can_upload_data', 'can_download_data', 'can_edit_data'],
+    'Data Engineer': ['can_view_data', 'can_upload_data', 'can_download_data', 'can_edit_data'],
     'Auditor': ['can_view_data', 'can_assess_risk', 'can_test_controls', 'can_gather_evidence', 'can_verify_accuracy', 'can_ensure_compliance', 'can_issue_opinion', 'can_report_findings'],
     'User': ['can_view_data']
 }
@@ -115,8 +122,35 @@ def signup():
     hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
     new_user = User(username=username, password_hash=hashed_pw, role='User')
     db.session.add(new_user)
+    
+    # Notify Admins and Managers
+    admins_managers = User.query.filter(User.role.in_(['Admin', 'Manager'])).all()
+    for u in admins_managers:
+        notif = Notification(user_id=u.id, message=f"A new user '{username}' has just registered.")
+        db.session.add(notif)
+        
     db.session.commit()
     return jsonify({'message': 'User registered successfully'})
+
+@app.route('/api/notifications', methods=['GET'])
+@token_required
+def get_notifications(current_user):
+    notifs = Notification.query.filter_by(user_id=current_user.id, is_read=False).order_by(Notification.timestamp.desc()).all()
+    return jsonify([{
+        'id': n.id,
+        'message': n.message,
+        'timestamp': n.timestamp.isoformat()
+    } for n in notifs])
+
+@app.route('/api/notifications/<int:notif_id>/read', methods=['PUT'])
+@token_required
+def read_notification(current_user, notif_id):
+    notif = Notification.query.get(notif_id)
+    if notif and notif.user_id == current_user.id:
+        notif.is_read = True
+        db.session.commit()
+        return jsonify({'message': 'Marked as read'})
+    return jsonify({'message': 'Notification not found'}), 404
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -180,6 +214,29 @@ def delete_user(current_user, user_id):
     db.session.delete(user)
     db.session.commit()
     return jsonify({'message': 'User deleted successfully'})
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@token_required
+@permission_required('can_manage_users')
+def update_user(current_user, user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+        
+    data = request.get_json()
+    if 'role' in data:
+        user.role = data['role']
+    if 'job_role' in data:
+        user.job_role = data['job_role']
+    if 'job_location' in data:
+        user.job_location = data['job_location']
+    if 'department' in data:
+        user.department = data['department']
+    if 'clearance_level' in data:
+        user.clearance_level = int(data['clearance_level'])
+        
+    db.session.commit()
+    return jsonify({'message': 'User updated successfully'})
 
 @app.route('/api/datasets', methods=['GET'])
 @token_required
@@ -245,6 +302,51 @@ def delete_dataset(current_user, dataset_id):
         return jsonify({'message': 'Dataset deleted successfully'})
     except Exception as e:
         db.session.rollback()
+        return jsonify({'message': str(e)}), 500
+
+@app.route('/api/datasets/<int:dataset_id>/download', methods=['GET'])
+@token_required
+@permission_required('can_download_data')
+def download_dataset(current_user, dataset_id):
+    ds = Dataset.query.get(dataset_id)
+    if not ds:
+        return jsonify({'message': 'Dataset not found'}), 404
+    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+    if not os.path.exists(filepath):
+        return jsonify({'message': 'File missing'}), 404
+    return send_file(filepath, as_attachment=True, download_name=ds.name)
+
+@app.route('/api/datasets/<int:dataset_id>', methods=['PUT'])
+@token_required
+@permission_required('can_edit_data')
+def update_dataset(current_user, dataset_id):
+    ds = Dataset.query.get(dataset_id)
+    if not ds:
+        return jsonify({'message': 'Dataset not found'}), 404
+        
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file provided'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+        
+    if not file.filename.endswith('.csv'):
+        return jsonify({'message': 'Only CSV files allowed'}), 400
+        
+    try:
+        # Overwrite the existing file
+        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+        file.save(filepath)
+        
+        # Verify it's readable
+        df = pd.read_csv(filepath, nrows=5)
+        
+        # Update name
+        ds.name = file.filename
+        db.session.commit()
+        return jsonify({'message': 'Dataset updated successfully'})
+    except Exception as e:
         return jsonify({'message': str(e)}), 500
 
 @app.route('/api/insights/<int:dataset_id>', methods=['GET'])
@@ -417,6 +519,123 @@ def get_filters(current_user, dataset_id):
         
         # Return top 5 most relevant filters to not overwhelm UI
         return jsonify(filters[:5])
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+@app.route('/api/audit/<int:dataset_id>', methods=['POST'])
+@token_required
+def perform_audit(current_user, dataset_id):
+    data = request.json
+    action = data.get('action')
+    
+    perms = get_user_permissions(current_user.role)
+    if action not in perms:
+        return jsonify({'message': 'Permission denied for this audit action'}), 403
+        
+    ds = Dataset.query.get(dataset_id)
+    if not ds:
+        return jsonify({'message': 'Dataset not found'}), 404
+        
+    # ABAC checks
+    if current_user.role not in ['Admin']:
+        if ds.department != current_user.department or ds.clearance_level > current_user.clearance_level:
+            return jsonify({'message': 'Access denied to this dataset (ABAC)'}), 403
+            
+    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+    if not os.path.exists(filepath):
+        return jsonify({'message': 'File missing'}), 404
+        
+    try:
+        df = pd.read_csv(filepath)
+        df = df.dropna(how='all')
+        
+        result_text = ""
+        
+        if action == 'can_assess_risk':
+            missing_pct = (df.isnull().sum() / len(df)) * 100
+            high_missing = missing_pct[missing_pct > 10]
+            if high_missing.empty:
+                result_text = "Low Risk: No columns have more than 10% missing data."
+            else:
+                result_text = "High Risk Identified! Columns with >10% missing data:\n"
+                for col, pct in high_missing.items():
+                    result_text += f"- {col}: {pct:.1f}%\n"
+                    
+        elif action == 'can_test_controls':
+            num_cols = df.select_dtypes(include=['number']).columns
+            if len(num_cols) == 0:
+                result_text = "No numeric columns to test controls."
+            else:
+                negative_counts = (df[num_cols] < 0).sum()
+                has_negatives = negative_counts[negative_counts > 0]
+                if has_negatives.empty:
+                    result_text = "Controls Verified: No unexpected negative values found in numeric columns."
+                else:
+                    result_text = "Control Failure! Negative values found in:\n"
+                    for col, cnt in has_negatives.items():
+                        result_text += f"- {col}: {cnt} rows\n"
+                    
+        elif action == 'can_gather_evidence':
+            num_cols = df.select_dtypes(include=['number']).columns
+            if len(num_cols) == 0:
+                result_text = "No numeric financial data available to aggregate."
+            else:
+                sums = df[num_cols].sum().sort_values(ascending=False).head(3)
+                result_text = "Financial Evidence Gathered (Top 3 Metrics):\n"
+                for col, val in sums.items():
+                    result_text += f"- Total {col}: {val:,.2f}\n"
+                    
+        elif action == 'can_verify_accuracy':
+            num_cols = df.select_dtypes(include=['number']).columns
+            if len(num_cols) == 0:
+                result_text = "No numeric data to verify accuracy."
+            else:
+                std_devs = df[num_cols].std().dropna()
+                result_text = "Accuracy Variance (Standard Deviations):\n"
+                for col, val in std_devs.head(5).items():
+                    result_text += f"- {col}: ±{val:,.2f}\n"
+                    
+        elif action == 'can_ensure_compliance':
+            sensitive_keywords = ['email', 'ssn', 'phone', 'address', 'name', 'ip']
+            found_cols = [col for col in df.columns if any(kw in col.lower() for kw in sensitive_keywords)]
+            if found_cols:
+                result_text = "Compliance Warning! Potential PII detected in columns:\n"
+                result_text += ", ".join(found_cols)
+                result_text += "\nEnsure these columns are properly masked or encrypted."
+            else:
+                result_text = "Compliance Check Passed: No obvious PII column headers detected."
+                
+        elif action == 'can_issue_opinion':
+            cat_cols = df.select_dtypes(include=['object', 'category']).columns
+            if len(cat_cols) == 0:
+                result_text = "Data is balanced (No categorical variables to skew)."
+            else:
+                skewed = []
+                for col in cat_cols:
+                    top_freq = df[col].value_counts(normalize=True).max()
+                    if top_freq > 0.90:
+                        skewed.append(col)
+                if skewed:
+                    result_text = "Auditor Opinion: Data is heavily skewed/biased in categories:\n" + ", ".join(skewed)
+                else:
+                    result_text = "Auditor Opinion: Certified Fair. Categorical data is reasonably balanced."
+                    
+        elif action == 'can_report_findings':
+            import datetime
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            result_text = f"--- AUDITOR FINAL REPORT ---\n"
+            result_text += f"Dataset: {ds.name}\n"
+            result_text += f"Rows: {len(df):,}\n"
+            result_text += f"Columns: {len(df.columns)}\n"
+            result_text += f"Audited By: {current_user.username} ({current_user.role})\n"
+            result_text += f"Timestamp: {now}\n"
+            result_text += f"Status: COMPLETED"
+            
+        else:
+            return jsonify({'message': 'Unknown audit action'}), 400
+            
+        return jsonify({'message': 'Success', 'result': result_text})
+        
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
