@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --bg-color: #0b1120; /* Midnight Blue */
+  --card-bg: rgba(15, 23, 42, 0.4); /* Slate very dark glass */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent-primary: #14b8a6; /* Teal */
+  --accent-secondary: #10b981; /* Emerald */
+  --border-color: rgba(20, 184, 166, 0.15);
+  --glow-border: rgba(20, 184, 166, 0.5);
+}
+
+body {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  min-height: 100vh;
+  /* Premium Aurora Mesh Background */
+  background-image: 
+    radial-gradient(ellipse at 20% 40%, rgba(20, 184, 166, 0.15), transparent 40%),
+    radial-gradient(ellipse at 80% 60%, rgba(16, 185, 129, 0.1), transparent 40%),
+    radial-gradient(circle at 50% 10%, rgba(6, 182, 212, 0.05), transparent 30%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+/* Gradient Text Effect */
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glassmorphism Cards with Premium Glow */
+.glass-card {
+  background: var(--card-bg) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color) !important;
+  border-radius: 20px;
+  color: var(--text-primary) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+              box-shadow 0.4s ease, border-color 0.4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.glass-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.03), transparent);
+  transform: skewX(-20deg);
+  transition: all 0.7s ease;
+}
+
+.glass-card:hover::before {
+  left: 150%;
+}
+
+.glass-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--glow-border) !important;
+  box-shadow: 0 15px 45px rgba(20, 184, 166, 0.15);
+}
+
+.glass-card .card-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Custom Navbar */
+.custom-navbar {
+  background: rgba(11, 17, 32, 0.8) !important;
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 0;
+}
+
+.navbar-brand {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+/* Minimalist Forms */
+.form-control, .form-select {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  border-radius: 12px;
+  padding: 0.8rem 1.2rem;
+  transition: all 0.3s ease;
+}
+
+/* Fix for invisible text in native select dropdown options */
+.form-select option {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.25) !important;
+  border-color: var(--accent-primary) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.form-label {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+/* Glowing Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.8), rgba(16, 185, 129, 0.8)) !important;
+  border: none !important;
+  border-radius: 12px;
+  color: #fff !important;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 0.7rem 1.8rem;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 1), rgba(16, 185, 129, 1)) !important;
+  box-shadow: 0 8px 25px rgba(20, 184, 166, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-outline-primary {
+  border: 1px solid var(--accent-primary) !important;
+  color: var(--accent-primary) !important;
+  background: transparent !important;
+  border-radius: 12px;
+}
+.btn-outline-primary:hover {
+  background: rgba(20, 184, 166, 0.1) !important;
+  box-shadow: 0 0 15px rgba(20, 184, 166, 0.3);
+}
+
+/* Add table styles ... */
+.table {
+  color: var(--text-primary) !important;
+}
+.table td, .table th {
+  border-color: rgba(255, 255, 255, 0.05);
+  background: transparent !important;
+  padding: 1rem;
+}
+
+.filter-select-red {
+  color: #dc3545 !important;
+  font-weight: 600;
+}
+.filter-select-red option {
+  color: #0b1120 !important;
+  background-color: #fff !important;
+}
+
