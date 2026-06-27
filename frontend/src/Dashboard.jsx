@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Container, Row, Col, Card, Button, Form, Modal } from 'react-bootstrap'
 import Plot from 'react-plotly.js'
@@ -11,6 +11,8 @@ export default function Dashboard({ user, setUser }) {
   
   const [datasets, setDatasets] = useState([])
   const [selectedDatasetId, setSelectedDatasetId] = useState(null)
+  const [uploadingTemp, setUploadingTemp] = useState(false)
+  const fileInputRef = useRef(null)
   
   const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -33,6 +35,34 @@ export default function Dashboard({ user, setUser }) {
       setAuditModal({ show: true, title: displayTitle, content: res.data.result })
     } catch (err) {
       setAuditModal({ show: true, title: 'Error', content: err.response?.data?.message || 'Failed to execute audit' })
+    }
+  }
+
+  const handleTempUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    setUploadingTemp(true)
+    setError('')
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/upload_temp`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${user.token}`
+        }
+      })
+      const newDataset = { id: res.data.id, name: res.data.name }
+      setDatasets(prev => [...prev, newDataset])
+      setSelectedDatasetId(res.data.id)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Error uploading temporary dataset')
+    }
+    setUploadingTemp(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
@@ -114,16 +144,33 @@ export default function Dashboard({ user, setUser }) {
 
       <div style={{ position: 'relative', zIndex: 1 }}>
         <AppNavbar user={user} setUser={setUser}>
-          <Form.Select 
-            value={selectedDatasetId || ''} 
-            onChange={(e) => setSelectedDatasetId(e.target.value)}
-            className="w-auto me-4"
-            style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)' }}
-          >
-            {datasets.map(d => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </Form.Select>
+          <div className="d-flex align-items-center">
+            <Form.Select 
+              value={selectedDatasetId || ''} 
+              onChange={(e) => setSelectedDatasetId(e.target.value)}
+              className="w-auto me-3"
+              style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)' }}
+            >
+              {datasets.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </Form.Select>
+            <input 
+              type="file" 
+              accept=".csv" 
+              style={{ display: 'none' }} 
+              ref={fileInputRef} 
+              onChange={handleTempUpload} 
+            />
+            <Button 
+              variant="outline-info" 
+              size="sm" 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingTemp}
+            >
+              {uploadingTemp ? 'Uploading...' : 'Temp Upload'}
+            </Button>
+          </div>
         </AppNavbar>
 
         <Container fluid className="mt-5 px-4">

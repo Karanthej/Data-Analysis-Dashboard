@@ -8,6 +8,7 @@ from functools import wraps
 import pandas as pd
 import os
 import shutil
+import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -349,14 +350,48 @@ def update_dataset(current_user, dataset_id):
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
-@app.route('/api/insights/<int:dataset_id>', methods=['GET'])
+@app.route('/api/upload_temp', methods=['POST'])
+@token_required
+def upload_temp_data(current_user):
+    if 'file' not in request.files:
+        return jsonify({'message': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+        
+    if not file.filename.endswith('.csv'):
+        return jsonify({'message': 'Only CSV files allowed'}), 400
+        
+    try:
+        temp_id = f"temp_{uuid.uuid4().hex}"
+        filename = f"{temp_id}.csv"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        
+        # Verify it's readable
+        df = pd.read_csv(filepath, nrows=5)
+        
+        return jsonify({
+            'id': temp_id,
+            'name': f"Temporary: {file.filename}"
+        })
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+@app.route('/api/insights/<dataset_id>', methods=['GET'])
 @token_required
 def get_insights(current_user, dataset_id):
-    ds = Dataset.query.get(dataset_id)
-    if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
+    if str(dataset_id).startswith('temp_'):
+        filename = f"{dataset_id}.csv"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(filepath):
+            return jsonify({'message': 'Temporary file missing or expired'}), 404
+    else:
+        ds = Dataset.query.get(dataset_id)
+        if not ds:
+            return jsonify({'message': 'Dataset not found'}), 404
+        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
         
-    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
         
@@ -484,14 +519,20 @@ def get_insights(current_user, dataset_id):
         traceback.print_exc()
         return jsonify({'message': str(e)}), 500
 
-@app.route('/api/filters/<int:dataset_id>', methods=['GET'])
+@app.route('/api/filters/<dataset_id>', methods=['GET'])
 @token_required
 def get_filters(current_user, dataset_id):
-    ds = Dataset.query.get(dataset_id)
-    if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
+    if str(dataset_id).startswith('temp_'):
+        filename = f"{dataset_id}.csv"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(filepath):
+            return jsonify({'message': 'Temporary file missing or expired'}), 404
+    else:
+        ds = Dataset.query.get(dataset_id)
+        if not ds:
+            return jsonify({'message': 'Dataset not found'}), 404
+        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
         
-    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
         
@@ -522,7 +563,7 @@ def get_filters(current_user, dataset_id):
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
-@app.route('/api/audit/<int:dataset_id>', methods=['POST'])
+@app.route('/api/audit/<dataset_id>', methods=['POST'])
 @token_required
 def perform_audit(current_user, dataset_id):
     data = request.json
@@ -532,16 +573,25 @@ def perform_audit(current_user, dataset_id):
     if action not in perms:
         return jsonify({'message': 'Permission denied for this audit action'}), 403
         
-    ds = Dataset.query.get(dataset_id)
-    if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
-        
-    # ABAC checks
-    if current_user.role not in ['Admin']:
-        if ds.department != current_user.department or ds.clearance_level > current_user.clearance_level:
-            return jsonify({'message': 'Access denied to this dataset (ABAC)'}), 403
+    if str(dataset_id).startswith('temp_'):
+        filename = f"{dataset_id}.csv"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(filepath):
+            return jsonify({'message': 'Temporary file missing or expired'}), 404
+        ds_name = f"Temporary Dataset: {dataset_id}"
+    else:
+        ds = Dataset.query.get(dataset_id)
+        if not ds:
+            return jsonify({'message': 'Dataset not found'}), 404
             
-    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+        # ABAC checks for permanent datasets
+        if current_user.role not in ['Admin']:
+            if ds.department != current_user.department or ds.clearance_level > current_user.clearance_level:
+                return jsonify({'message': 'Access denied to this dataset (ABAC)'}), 403
+                
+        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+        ds_name = ds.name
+        
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
         
@@ -624,7 +674,7 @@ def perform_audit(current_user, dataset_id):
             import datetime
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             result_text = f"--- AUDITOR FINAL REPORT ---\n"
-            result_text += f"Dataset: {ds.name}\n"
+            result_text += f"Dataset: {ds_name}\n"
             result_text += f"Rows: {len(df):,}\n"
             result_text += f"Columns: {len(df.columns)}\n"
             result_text += f"Audited By: {current_user.username} ({current_user.role})\n"
