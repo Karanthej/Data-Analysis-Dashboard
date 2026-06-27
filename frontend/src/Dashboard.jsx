@@ -79,7 +79,11 @@ export default function Dashboard({ user, setUser }) {
         }
       } catch (err) {
         console.error(err)
-        setError('Failed to fetch datasets.')
+        if (!err.response) {
+          setError(`Failed to fetch datasets: ${err.message}`)
+        } else {
+          setError(`Failed to fetch datasets (Error ${err.response.status})`)
+        }
       }
     }
     fetchDatasets()

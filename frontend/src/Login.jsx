@@ -59,9 +59,12 @@ export default function Login({ setUser }) {
       }
     } catch (err) {
       if (!err.response) {
-        setError('Cannot connect to the server. Please ensure the backend is running.')
+        setError(`Cannot connect: ${err.message}`)
       } else {
-        setError(err.response?.data?.message || 'An error occurred')
+        const status = err.response.status
+        const data = err.response.data
+        const msg = data?.message || (typeof data === 'string' ? data.substring(0, 50) : JSON.stringify(data))
+        setError(`Error ${status}: ${msg}`)
       }
     }
     setLoading(false)
