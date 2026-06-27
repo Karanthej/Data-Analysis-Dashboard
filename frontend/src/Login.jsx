@@ -38,10 +38,24 @@ export default function Login({ setUser }) {
         navigate('/dashboard')
       } else {
         await axios.post(`${API_BASE_URL}/api/signup`, { username, password })
-        setSuccessMsg('Account created successfully! You can now log in.')
-        setIsLogin(true)
-        setUsername('')
-        setPassword('')
+        
+        // Auto-login after successful signup
+        const res = await axios.post(`${API_BASE_URL}/api/login`, { username, password })
+        localStorage.setItem('token', res.data.token)
+        localStorage.setItem('role', res.data.role)
+        localStorage.setItem('username', res.data.username)
+        localStorage.setItem('permissions', JSON.stringify(res.data.permissions))
+        localStorage.setItem('department', res.data.department || '')
+        localStorage.setItem('clearance_level', res.data.clearance_level || 1)
+        setUser({ 
+          token: res.data.token, 
+          role: res.data.role, 
+          username: res.data.username,
+          permissions: res.data.permissions,
+          department: res.data.department,
+          clearance_level: res.data.clearance_level
+        })
+        navigate('/dashboard')
       }
     } catch (err) {
       setError(err.response?.data?.message || 'An error occurred')
