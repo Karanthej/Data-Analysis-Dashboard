@@ -26,7 +26,7 @@ bcrypt = Bcrypt(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_super_secret_key_123')
+app.config['SECRET_KEY'] = os.environ["SECRET_KEY"]
 UPLOAD_FOLDER = os.path.join(app.instance_path, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -109,16 +109,7 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
     
-    # Auto-load dataset if empty
-    if not Dataset.query.first():
-        csv_path = r'k:\saleproject\Sales Data.csv'
-        if os.path.exists(csv_path):
-            target_path = os.path.join(UPLOAD_FOLDER, 'sales_data.csv')
-            shutil.copy(csv_path, target_path)
-            ds = Dataset(name="Sales Dataset 2019", filename="sales_data.csv", assigned_location="Global", department="Global", clearance_level=1)
-            db.session.add(ds)
-            db.session.commit()
-            print("Successfully auto-loaded the generic dataset!")
+
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
