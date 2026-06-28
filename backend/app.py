@@ -112,7 +112,9 @@ with app.app_context():
         db.session.add(admin)
         db.session.commit()
     
-
+@app.route('/')
+def home():
+    return jsonify({"status": "Backend is running!"}), 200
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
