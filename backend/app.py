@@ -26,7 +26,10 @@ bcrypt = Bcrypt(app)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ["SECRET_KEY"]
+app.config['SECRET_KEY'] = os.getenv(
+    "SECRET_KEY",
+    "change-this-in-production"
+)
 UPLOAD_FOLDER = os.path.join(app.instance_path, 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
