@@ -84,7 +84,13 @@ ROLE_PERMISSIONS = {
     'Manager': ['can_view_data', 'can_upload_data', 'can_download_data', 'can_edit_data'],
     'Data Engineer': ['can_view_data', 'can_upload_data', 'can_download_data', 'can_edit_data'],
     'Auditor': ['can_view_data', 'can_assess_risk', 'can_test_controls', 'can_gather_evidence', 'can_verify_accuracy', 'can_ensure_compliance', 'can_issue_opinion', 'can_report_findings'],
-    'User': ['can_view_data']
+    'User': [
+        'can_view_data',
+        'can_upload_data',
+        'can_download_data',
+        'can_edit_data',
+        'can_delete_data'
+    ]
 }
 
 def get_user_permissions(role):
