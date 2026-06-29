@@ -249,7 +249,7 @@ export default function Dashboard({ user, setUser }) {
 
           <Row className="mb-5">
             <Col>
-              <Card className="glass-card">
+              <Card className="glass-card visible-overflow">
                 <Card.Body className="p-0">
                   <Table variant="dark" hover className="mb-0 align-middle">
                     <thead style={{ borderBottom: '2px solid var(--border-color)' }}>

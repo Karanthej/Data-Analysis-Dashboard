@@ -77,6 +77,14 @@ body {
   position: relative;
 }
 
+.glass-card.visible-overflow {
+  overflow: visible !important;
+}
+
+.glass-card.visible-overflow::before {
+  display: none !important;
+}
+
 .glass-card::before {
   content: "";
   position: absolute;
