@@ -6,6 +6,7 @@ import { API_BASE_URL } from './config';
 import AppNavbar from './components/AppNavbar';
 import DatasetPreviewModal from './components/DatasetPreviewModal';
 import BIIntegrationModal from './components/BIIntegrationModal';
+import AdvancedAnalytics from './AdvancedAnalytics';
 
 export default function Dashboard({ user, setUser }) {
   const navigate = useNavigate();
@@ -143,8 +144,14 @@ export default function Dashboard({ user, setUser }) {
     }).catch(err => alert("Failed to download"));
   };
 
+  const [analyzingDataset, setAnalyzingDataset] = useState(null);
+
   const handleAnalyze = (dataset) => {
-    navigate(`/analyze/${dataset.id}`);
+    setAnalyzingDataset(dataset);
+    // Smooth scroll down to the analytics section
+    setTimeout(() => {
+      document.getElementById('analytics-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const formatBytes = (bytes) => {
@@ -306,6 +313,17 @@ export default function Dashboard({ user, setUser }) {
               </Card>
             </Col>
           </Row>
+
+          {analyzingDataset && (
+            <div id="analytics-section">
+              <AdvancedAnalytics 
+                dataset={analyzingDataset} 
+                user={user} 
+                onClose={() => setAnalyzingDataset(null)} 
+              />
+            </div>
+          )}
+
         </Container>
       </div>
 

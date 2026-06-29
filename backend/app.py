@@ -827,12 +827,13 @@ def get_chart_data(current_user, dataset_id):
                 grouped = df.groupby(x_col).size().reset_index(name='count')
                 y_col_act = 'count'
             else:
-                if agg_func == 'sum': grouped = df.groupby(x_col)[y_col].sum().reset_index()
-                elif agg_func == 'mean': grouped = df.groupby(x_col)[y_col].mean().reset_index()
-                elif agg_func == 'min': grouped = df.groupby(x_col)[y_col].min().reset_index()
-                elif agg_func == 'max': grouped = df.groupby(x_col)[y_col].max().reset_index()
-                else: grouped = df.groupby(x_col)[y_col].count().reset_index()
-                y_col_act = y_col
+                try:
+                    grouped = df.groupby(x_col)[y_col].agg(agg_func).reset_index(name=f"{y_col}_{agg_func}")
+                    y_col_act = f"{y_col}_{agg_func}"
+                except Exception as e:
+                    # fallback if something weird happens with agg
+                    grouped = df.groupby(x_col)[y_col].sum().reset_index(name=f"{y_col}_{agg_func}")
+                    y_col_act = f"{y_col}_{agg_func}"
                 
             grouped = grouped.dropna().sort_values(by=y_col_act, ascending=False).head(100) # Limit to 100 for performance
             

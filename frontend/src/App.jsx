@@ -5,7 +5,6 @@ import Login from './Login'
 import Dashboard from './Dashboard'
 import UploadData from './UploadData'
 import UserManagement from './UserManagement'
-import AdvancedAnalytics from './AdvancedAnalytics'
 
 function App() {
   const [user, setUser] = useState(() => {
@@ -36,7 +35,6 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login setUser={setUser} />} />
           <Route path="/dashboard" element={user ? <Dashboard user={user} setUser={setUser} /> : <Navigate to="/login" />} />
-          <Route path="/analyze/:id" element={user ? <AdvancedAnalytics user={user} setUser={setUser} /> : <Navigate to="/login" />} />
           <Route path="/upload" element={user && user.permissions.includes('can_upload_data') ? <UploadData user={user} setUser={setUser} /> : <Navigate to="/dashboard" />} />
           <Route path="/users" element={user && user.permissions.includes('can_manage_users') ? <UserManagement user={user} setUser={setUser} /> : <Navigate to="/dashboard" />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
