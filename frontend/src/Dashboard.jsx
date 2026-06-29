@@ -5,8 +5,8 @@ import axios from 'axios';
 import { API_BASE_URL } from './config';
 import AppNavbar from './components/AppNavbar';
 import DatasetPreviewModal from './components/DatasetPreviewModal';
-import BIIntegrationModal from './components/BIIntegrationModal';
 import AdvancedAnalytics from './AdvancedAnalytics';
+import InlineBIVisualization from './components/InlineBIVisualization';
 
 export default function Dashboard({ user, setUser }) {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ export default function Dashboard({ user, setUser }) {
   
   // Modals state
   const [previewModal, setPreviewModal] = useState({ show: false, dataset: null });
-  const [biModal, setBiModal] = useState({ show: false, dataset: null });
   
   const [error, setError] = useState('');
 
@@ -145,12 +144,21 @@ export default function Dashboard({ user, setUser }) {
   };
 
   const [analyzingDataset, setAnalyzingDataset] = useState(null);
+  const [visualizingDataset, setVisualizingDataset] = useState(null);
 
   const handleAnalyze = (dataset) => {
     setAnalyzingDataset(dataset);
-    // Smooth scroll down to the analytics section
+    setVisualizingDataset(null); // Close the other
     setTimeout(() => {
       document.getElementById('analytics-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const handleVisualize = (dataset) => {
+    setVisualizingDataset(dataset);
+    setAnalyzingDataset(null); // Close the other
+    setTimeout(() => {
+      document.getElementById('bi-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
 
@@ -296,7 +304,7 @@ export default function Dashboard({ user, setUser }) {
                                 <Dropdown.Menu variant="dark">
                                   <Dropdown.Item onClick={() => setPreviewModal({ show: true, dataset: d })}>View (Preview)</Dropdown.Item>
                                   <Dropdown.Item onClick={() => handleAnalyze(d)}>Analyze</Dropdown.Item>
-                                  <Dropdown.Item onClick={() => setBiModal({ show: true, dataset: d })}>Visualize (BI)</Dropdown.Item>
+                                  <Dropdown.Item onClick={() => handleVisualize(d)}>Visualize (BI)</Dropdown.Item>
                                   <Dropdown.Divider />
                                   <Dropdown.Item onClick={() => handleDownload(d.id)}>Download</Dropdown.Item>
                                   <Dropdown.Item onClick={() => handleRename(d.id, d.dataset_name)}>Rename</Dropdown.Item>
@@ -324,6 +332,16 @@ export default function Dashboard({ user, setUser }) {
             </div>
           )}
 
+          {visualizingDataset && (
+            <div id="bi-section">
+              <InlineBIVisualization 
+                dataset={visualizingDataset} 
+                user={user} 
+                onClose={() => setVisualizingDataset(null)} 
+              />
+            </div>
+          )}
+
         </Container>
       </div>
 
@@ -331,13 +349,6 @@ export default function Dashboard({ user, setUser }) {
         show={previewModal.show} 
         onHide={() => setPreviewModal({ show: false, dataset: null })} 
         dataset={previewModal.dataset}
-        user={user}
-      />
-
-      <BIIntegrationModal 
-        show={biModal.show} 
-        onHide={() => setBiModal({ show: false, dataset: null })} 
-        dataset={biModal.dataset}
         user={user}
       />
     </div>
