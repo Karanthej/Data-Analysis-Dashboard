@@ -48,11 +48,18 @@ class User(db.Model):
 
 class Dataset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    filename = db.Column(db.String(200), nullable=False)
-    assigned_location = db.Column(db.String(50), nullable=True)
-    department = db.Column(db.String(50), nullable=True)
-    clearance_level = db.Column(db.Integer, nullable=False, default=1)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    dataset_name = db.Column(db.String(100), nullable=False)
+    file_name = db.Column(db.String(200), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer, nullable=True)
+    rows = db.Column(db.Integer, nullable=True)
+    columns = db.Column(db.Integer, nullable=True)
+    upload_date = db.Column(db.Date, default=lambda: datetime.datetime.utcnow().date())
+    upload_time = db.Column(db.Time, default=lambda: datetime.datetime.utcnow().time())
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    status = db.Column(db.String(50), default='Uploaded')
 
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -246,16 +253,19 @@ def update_user(current_user, user_id):
 @token_required
 @permission_required('can_view_data')
 def get_datasets(current_user):
-    datasets = Dataset.query.all()
-    if 'can_manage_users' in get_user_permissions(current_user.role):
-        filtered_ds = datasets
-    else:
-        filtered_ds = [d for d in datasets if 
-            (d.assigned_location == 'Global' or d.assigned_location == current_user.job_location) and 
-            (d.department == 'Global' or d.department == current_user.department) and 
-            d.clearance_level <= current_user.clearance_level
-        ]
-    return jsonify([{'id': d.id, 'name': d.name, 'assigned_location': d.assigned_location, 'department': d.department, 'clearance_level': d.clearance_level} for d in filtered_ds])
+    # Strict isolation: A user can only see their own datasets.
+    datasets = Dataset.query.filter_by(user_id=current_user.id).all()
+    return jsonify([{
+        'id': d.id,
+        'dataset_name': d.dataset_name,
+        'file_name': d.file_name,
+        'file_size': d.file_size,
+        'rows': d.rows,
+        'columns': d.columns,
+        'upload_date': d.upload_date.isoformat() if d.upload_date else None,
+        'upload_time': d.upload_time.isoformat() if d.upload_time else None,
+        'status': d.status
+    } for d in datasets])
 
 @app.route('/api/upload', methods=['POST'])
 @token_required
@@ -267,19 +277,30 @@ def upload_data(current_user):
     if file.filename == '':
         return jsonify({'message': 'No selected file'}), 400
         
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ['.csv', '.xlsx', '.xls']:
+        return jsonify({'message': 'Unsupported file format'}), 400
+
     try:
         filename = f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
+        file_size = os.path.getsize(filepath)
         
-        assigned_location = request.form.get('assigned_location', 'Global')
-        department = request.form.get('department', 'Global')
-        clearance_level = int(request.form.get('clearance_level', 1))
+        # Read file to get rows and columns
+        df = load_df(filepath)
+        rows, columns = df.shape
         
-        # Verify it's readable
-        df = load_df(filepath, nrows=5)
-        
-        ds = Dataset(name=file.filename, filename=filename, assigned_location=assigned_location, department=department, clearance_level=clearance_level)
+        ds = Dataset(
+            user_id=current_user.id,
+            dataset_name=request.form.get('dataset_name', file.filename),
+            file_name=filename,
+            file_path=filepath,
+            file_size=file_size,
+            rows=rows,
+            columns=columns,
+            status='Ready'
+        )
         db.session.add(ds)
         db.session.commit()
         return jsonify({'message': 'Dataset uploaded successfully'})
@@ -290,17 +311,14 @@ def upload_data(current_user):
 @token_required
 @permission_required('can_delete_data')
 def delete_dataset(current_user, dataset_id):
-    ds = Dataset.query.get(dataset_id)
+    ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
     if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
+        return jsonify({'message': 'Dataset not found or access denied'}), 404
         
     try:
-        # Remove file from disk
-        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        if os.path.exists(ds.file_path):
+            os.remove(ds.file_path)
             
-        # Remove from DB
         db.session.delete(ds)
         db.session.commit()
         return jsonify({'message': 'Dataset deleted successfully'})
@@ -312,46 +330,27 @@ def delete_dataset(current_user, dataset_id):
 @token_required
 @permission_required('can_download_data')
 def download_dataset(current_user, dataset_id):
-    ds = Dataset.query.get(dataset_id)
+    ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
     if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
-    filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
-    if not os.path.exists(filepath):
+        return jsonify({'message': 'Dataset not found or access denied'}), 404
+    if not os.path.exists(ds.file_path):
         return jsonify({'message': 'File missing'}), 404
-    return send_file(filepath, as_attachment=True, download_name=ds.name)
+    return send_file(ds.file_path, as_attachment=True, download_name=ds.file_name)
 
 @app.route('/api/datasets/<int:dataset_id>', methods=['PUT'])
 @token_required
 @permission_required('can_edit_data')
 def update_dataset(current_user, dataset_id):
-    ds = Dataset.query.get(dataset_id)
+    ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
     if not ds:
-        return jsonify({'message': 'Dataset not found'}), 404
+        return jsonify({'message': 'Dataset not found or access denied'}), 404
         
-    if 'file' not in request.files:
-        return jsonify({'message': 'No file provided'}), 400
-        
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'message': 'No selected file'}), 400
-        
-    if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
-        return jsonify({'message': 'Only CSV and Excel files allowed'}), 400
-        
-    try:
-        # Overwrite the existing file
-        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
-        file.save(filepath)
-        
-        # Verify it's readable
-        df = load_df(filepath, nrows=5)
-        
-        # Update name
-        ds.name = file.filename
+    data = request.get_json()
+    if data and 'dataset_name' in data:
+        ds.dataset_name = data['dataset_name']
         db.session.commit()
-        return jsonify({'message': 'Dataset updated successfully'})
-    except Exception as e:
-        return jsonify({'message': str(e)}), 500
+        return jsonify({'message': 'Dataset renamed successfully'})
+    return jsonify({'message': 'No update parameters provided'}), 400
 
 @app.route('/api/upload_temp', methods=['POST'])
 @token_required
@@ -395,10 +394,10 @@ def get_insights(current_user, dataset_id):
             return jsonify({'message': 'Temporary file missing or expired'}), 404
         filepath = os.path.join(UPLOAD_FOLDER, filename)
     else:
-        ds = Dataset.query.get(dataset_id)
+        ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
         if not ds:
-            return jsonify({'message': 'Dataset not found'}), 404
-        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+            return jsonify({'message': 'Dataset not found or access denied'}), 404
+        filepath = ds.file_path
         
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
@@ -540,10 +539,10 @@ def get_filters(current_user, dataset_id):
             return jsonify({'message': 'Temporary file missing or expired'}), 404
         filepath = os.path.join(UPLOAD_FOLDER, filename)
     else:
-        ds = Dataset.query.get(dataset_id)
+        ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
         if not ds:
-            return jsonify({'message': 'Dataset not found'}), 404
-        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
+            return jsonify({'message': 'Dataset not found or access denied'}), 404
+        filepath = ds.file_path
         
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
@@ -596,17 +595,12 @@ def perform_audit(current_user, dataset_id):
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         ds_name = f"Temporary Dataset: {dataset_id}"
     else:
-        ds = Dataset.query.get(dataset_id)
+        ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
         if not ds:
-            return jsonify({'message': 'Dataset not found'}), 404
-            
-        # ABAC checks for permanent datasets
-        if current_user.role not in ['Admin']:
-            if ds.department != current_user.department or ds.clearance_level > current_user.clearance_level:
-                return jsonify({'message': 'Access denied to this dataset (ABAC)'}), 403
+            return jsonify({'message': 'Dataset not found or access denied'}), 404
                 
-        filepath = os.path.join(UPLOAD_FOLDER, ds.filename)
-        ds_name = ds.name
+        filepath = ds.file_path
+        ds_name = ds.dataset_name
         
     if not os.path.exists(filepath):
         return jsonify({'message': 'File missing'}), 404
@@ -704,6 +698,70 @@ def perform_audit(current_user, dataset_id):
         
     except Exception as e:
         return jsonify({'message': str(e)}), 500
+
+@app.route('/api/datasets/<int:dataset_id>/preview', methods=['GET'])
+@token_required
+@permission_required('can_view_data')
+def preview_dataset(current_user, dataset_id):
+    ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
+    if not ds:
+        return jsonify({'message': 'Dataset not found or access denied'}), 404
+        
+    if not os.path.exists(ds.file_path):
+        return jsonify({'message': 'File missing'}), 404
+        
+    try:
+        df = load_df(ds.file_path)
+        
+        # First 20 rows
+        head_data = df.head(20).fillna("").to_dict(orient='records')
+        
+        # Stats
+        missing_values = int(df.isnull().sum().sum())
+        duplicates = int(df.duplicated().sum())
+        dtypes = {col: str(dtype) for col, dtype in df.dtypes.items()}
+        
+        # Null value statistics per column
+        null_stats = df.isnull().sum().to_dict()
+        null_stats = {k: int(v) for k, v in null_stats.items()}
+        
+        # Basic descriptive statistics (numeric only, json-safe)
+        desc_stats = df.describe().fillna("").to_dict()
+        
+        return jsonify({
+            'head': head_data,
+            'columns': list(df.columns),
+            'rows_count': int(df.shape[0]),
+            'cols_count': int(df.shape[1]),
+            'missing_values_total': missing_values,
+            'duplicates': duplicates,
+            'data_types': dtypes,
+            'null_stats': null_stats,
+            'desc_stats': desc_stats
+        })
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+# BI Integrations (Stubs)
+@app.route('/api/datasets/<int:dataset_id>/export/tableau', methods=['POST'])
+@token_required
+def export_tableau(current_user, dataset_id):
+    return jsonify({'message': 'Export to Tableau initiated. Note: Requires Tableau Server credentials.'})
+
+@app.route('/api/datasets/<int:dataset_id>/embed/tableau', methods=['GET'])
+@token_required
+def embed_tableau(current_user, dataset_id):
+    return jsonify({'embed_url': 'https://public.tableau.com/views/Placeholder/Dashboard1', 'message': 'Requires Tableau Embedding API configuration.'})
+
+@app.route('/api/datasets/<int:dataset_id>/export/powerbi', methods=['POST'])
+@token_required
+def export_powerbi(current_user, dataset_id):
+    return jsonify({'message': 'Publish to Power BI Workspace initiated. Note: Requires Power BI Azure AD credentials.'})
+
+@app.route('/api/datasets/<int:dataset_id>/embed/powerbi', methods=['GET'])
+@token_required
+def embed_powerbi(current_user, dataset_id):
+    return jsonify({'embed_url': 'https://app.powerbi.com/reportEmbed?reportId=placeholder', 'message': 'Requires Power BI Embedded SDK configuration.'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5000)
