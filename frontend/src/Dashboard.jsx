@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Form, Table, Badge, Dropdown, Spinner } from 'react-bootstrap';
-import Plot from 'react-plotly.js';
+import { Container, Row, Col, Card, Button, Form, Table, Badge, Dropdown, InputGroup } from 'react-bootstrap';
 import axios from 'axios';
 import { API_BASE_URL } from './config';
 import AppNavbar from './components/AppNavbar';
@@ -19,14 +18,15 @@ export default function Dashboard({ user, setUser }) {
   const [previewModal, setPreviewModal] = useState({ show: false, dataset: null });
   const [biModal, setBiModal] = useState({ show: false, dataset: null });
   
-  // Analyze state
-  const [analyzingDataset, setAnalyzingDataset] = useState(null);
-  const [insights, setInsights] = useState(null);
-  const [loadingInsights, setLoadingInsights] = useState(false);
-  
   const [error, setError] = useState('');
 
-  // 1. Fetch datasets
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [sortBy, setSortBy] = useState('latest');
+
+  // Fetch datasets
   const fetchDatasets = async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/datasets`, {
@@ -42,6 +42,36 @@ export default function Dashboard({ user, setUser }) {
   useEffect(() => {
     fetchDatasets();
   }, [user.token]);
+
+  // Derived filtered & sorted datasets
+  const filteredDatasets = useMemo(() => {
+    let result = [...datasets];
+    
+    if (searchQuery) {
+      result = result.filter(d => d.dataset_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (filterType) {
+      result = result.filter(d => d.file_name.toLowerCase().endsWith(filterType.toLowerCase()));
+    }
+    if (filterStatus) {
+      result = result.filter(d => d.status.toLowerCase() === filterStatus.toLowerCase());
+    }
+    
+    result.sort((a, b) => {
+      const dateA = new Date(`${a.upload_date}T${a.upload_time || '00:00:00'}`);
+      const dateB = new Date(`${b.upload_date}T${b.upload_time || '00:00:00'}`);
+      switch (sortBy) {
+        case 'latest': return dateB - dateA;
+        case 'oldest': return dateA - dateB;
+        case 'name_asc': return a.dataset_name.localeCompare(b.dataset_name);
+        case 'name_desc': return b.dataset_name.localeCompare(a.dataset_name);
+        case 'size': return (b.file_size || 0) - (a.file_size || 0);
+        default: return 0;
+      }
+    });
+    
+    return result;
+  }, [datasets, searchQuery, filterType, filterStatus, sortBy]);
 
   // Handle Upload
   const handleUpload = async (e) => {
@@ -71,7 +101,6 @@ export default function Dashboard({ user, setUser }) {
     }
   };
 
-  // Actions
   const handleRename = async (id, currentName) => {
     const newName = prompt("Enter new dataset name:", currentName);
     if (newName && newName !== currentName) {
@@ -92,7 +121,6 @@ export default function Dashboard({ user, setUser }) {
         await axios.delete(`${API_BASE_URL}/api/datasets/${id}`, {
           headers: { Authorization: `Bearer ${user.token}` }
         });
-        if (analyzingDataset?.id === id) setAnalyzingDataset(null);
         fetchDatasets();
       } catch (err) {
         alert(err.response?.data?.message || 'Failed to delete dataset');
@@ -101,9 +129,6 @@ export default function Dashboard({ user, setUser }) {
   };
 
   const handleDownload = (id) => {
-    window.open(`${API_BASE_URL}/api/datasets/${id}/download?token=${user.token}`, '_blank');
-    // Note: Since download needs auth, using query param or handling via blob is needed.
-    // For simplicity in UI, we trigger an axios fetch and download the blob.
     axios.get(`${API_BASE_URL}/api/datasets/${id}/download`, {
       headers: { Authorization: `Bearer ${user.token}` },
       responseType: 'blob',
@@ -111,7 +136,6 @@ export default function Dashboard({ user, setUser }) {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      // try to extract filename from content-disposition header if needed
       link.setAttribute('download', `dataset_${id}`); 
       document.body.appendChild(link);
       link.click();
@@ -119,29 +143,10 @@ export default function Dashboard({ user, setUser }) {
     }).catch(err => alert("Failed to download"));
   };
 
-  const handleAnalyze = async (dataset) => {
-    setAnalyzingDataset(dataset);
-    setLoadingInsights(true);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/insights/${dataset.id}`, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      });
-      setInsights(res.data);
-    } catch (err) {
-      alert('Failed to analyze dataset');
-      setInsights(null);
-    }
-    setLoadingInsights(false);
+  const handleAnalyze = (dataset) => {
+    navigate(`/analyze/${dataset.id}`);
   };
 
-  const formatValue = (val) => {
-    if (typeof val === 'number') {
-      if (val % 1 !== 0) return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return val.toLocaleString();
-    }
-    return val;
-  };
-  
   const formatBytes = (bytes) => {
     if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -186,6 +191,62 @@ export default function Dashboard({ user, setUser }) {
 
           {error && <div className="alert alert-danger">{error}</div>}
 
+          {/* Search and Filters Toolbar */}
+          <Row className="mb-4">
+            <Col md={12}>
+              <Card className="glass-card" style={{ padding: '15px' }}>
+                <div className="d-flex flex-wrap gap-3 align-items-center">
+                  <div style={{ flex: '1 1 250px' }}>
+                    <Form.Control 
+                      type="text" 
+                      placeholder="Search dataset name..." 
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)' }}
+                    />
+                  </div>
+                  <div>
+                    <Form.Select 
+                      value={filterType} 
+                      onChange={e => setFilterType(e.target.value)}
+                      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)', minWidth: '150px' }}
+                    >
+                      <option value="">All Types</option>
+                      <option value="csv">CSV</option>
+                      <option value="xlsx">XLSX / XLS</option>
+                    </Form.Select>
+                  </div>
+                  <div>
+                    <Form.Select 
+                      value={filterStatus} 
+                      onChange={e => setFilterStatus(e.target.value)}
+                      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)', minWidth: '150px' }}
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="Uploaded">Uploaded</option>
+                      <option value="Ready">Ready</option>
+                      <option value="Processing">Processing</option>
+                    </Form.Select>
+                  </div>
+                  <div className="d-flex align-items-center gap-2" style={{ marginLeft: 'auto' }}>
+                    <span className="text-muted small fw-bold text-uppercase">Sort by:</span>
+                    <Form.Select 
+                      value={sortBy} 
+                      onChange={e => setSortBy(e.target.value)}
+                      style={{ backgroundColor: 'rgba(15, 23, 42, 0.5)', color: 'white', border: '1px solid var(--border-color)', minWidth: '160px' }}
+                    >
+                      <option value="latest">Latest Upload</option>
+                      <option value="oldest">Oldest Upload</option>
+                      <option value="name_asc">Name (A-Z)</option>
+                      <option value="name_desc">Name (Z-A)</option>
+                      <option value="size">Size</option>
+                    </Form.Select>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
           <Row className="mb-5">
             <Col>
               <Card className="glass-card">
@@ -204,14 +265,14 @@ export default function Dashboard({ user, setUser }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {datasets.length === 0 ? (
+                      {filteredDatasets.length === 0 ? (
                         <tr>
                           <td colSpan="8" className="text-center py-5 text-muted">
-                            No datasets uploaded yet. Click "Upload Dataset" to begin.
+                            {datasets.length === 0 ? 'No datasets uploaded yet. Click "Upload Dataset" to begin.' : 'No datasets match your filters.'}
                           </td>
                         </tr>
                       ) : (
-                        datasets.map(d => (
+                        filteredDatasets.map(d => (
                           <tr key={d.id}>
                             <td className="px-4 fw-bold">{d.dataset_name}</td>
                             <td><Badge bg="secondary" className="text-uppercase">{d.file_name.split('.').pop()}</Badge></td>
@@ -245,113 +306,6 @@ export default function Dashboard({ user, setUser }) {
               </Card>
             </Col>
           </Row>
-
-          {/* Analysis Section */}
-          {analyzingDataset && (
-            <div className="mt-5 border-top border-secondary pt-5">
-              <Row className="mb-4">
-                <Col className="d-flex justify-content-between align-items-center">
-                  <h3 className="fw-bold m-0">Analysis: <span className="text-primary">{analyzingDataset.dataset_name}</span></h3>
-                  <Button variant="outline-secondary" size="sm" onClick={() => setAnalyzingDataset(null)}>Close Analysis</Button>
-                </Col>
-              </Row>
-
-              {loadingInsights ? (
-                <div className="text-center py-5"><Spinner animation="border" variant="primary" /></div>
-              ) : insights ? (
-                <>
-                  <Row className="mb-4 justify-content-center">
-                    {insights.kpis.map((kpi, idx) => (
-                      <Col md="auto" key={idx} style={{ flex: '1 1 0', minWidth: '200px' }} className="mb-3">
-                        <Card className="text-center glass-card h-100">
-                          <Card.Body className="d-flex flex-column justify-content-center">
-                            <Card.Title className="text-muted" style={{fontSize: '0.9rem'}}>{kpi.title}</Card.Title>
-                            <h4 className="mt-2 text-truncate" title={kpi.value}>{formatValue(kpi.value)}</h4>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    ))}
-                  </Row>
-                  
-                  <Row>
-                    <Col md={6} className="mb-4">
-                      {insights.bar_chart ? (
-                        <Card className="glass-card h-100">
-                          <Card.Body>
-                            <Card.Title className="text-white fw-bold text-capitalize fs-5">{insights.bar_chart.title}</Card.Title>
-                            <div style={{ background: 'transparent', display: 'flex', justifyContent: 'center' }}>
-                              <Plot
-                                data={[
-                                  {
-                                    x: insights.bar_chart.labels,
-                                    y: insights.bar_chart.values,
-                                    type: 'bar',
-                                    marker: {
-                                      color: insights.bar_chart.values,
-                                      colorscale: [[0, '#7ED7F7'], [1, '#5A4FD6']]
-                                    },
-                                  },
-                                ]}
-                                layout={{ 
-                                  width: 500, height: 350, 
-                                  paper_bgcolor: 'rgba(0,0,0,0)', 
-                                  plot_bgcolor: 'rgba(0,0,0,0)',
-                                  font: {color: '#cbd5e1'},
-                                  xaxis: {gridcolor: 'rgba(255,255,255,0.1)', title: insights.bar_chart.cat_col, tickangle: -45},
-                                  yaxis: {gridcolor: 'rgba(255,255,255,0.1)', title: insights.bar_chart.num_col},
-                                  margin: { b: 80, t: 20 }
-                                }}
-                                config={{displayModeBar: false}}
-                              />
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      ) : (
-                        <Card className="glass-card h-100"><Card.Body>No bar chart insight generated.</Card.Body></Card>
-                      )}
-                    </Col>
-                    
-                    <Col md={6} className="mb-4">
-                      {insights.line_chart ? (
-                        <Card className="glass-card h-100">
-                          <Card.Body>
-                            <Card.Title className="text-white fw-bold text-capitalize fs-5">{insights.line_chart.title}</Card.Title>
-                            <div style={{ background: 'transparent', display: 'flex', justifyContent: 'center' }}>
-                              <Plot
-                                data={[
-                                  {
-                                    x: insights.line_chart.labels,
-                                    y: insights.line_chart.values,
-                                    type: 'scatter',
-                                    mode: 'lines+markers',
-                                    marker: {color: '#5A4FD6'},
-                                    line: {color: '#7ED7F7', width: 3}
-                                  },
-                                ]}
-                                layout={{ 
-                                  width: 500, height: 350, 
-                                  paper_bgcolor: 'rgba(0,0,0,0)', 
-                                  plot_bgcolor: 'rgba(0,0,0,0)',
-                                  font: {color: '#cbd5e1'},
-                                  xaxis: {gridcolor: 'rgba(255,255,255,0.1)', title: insights.line_chart.cat_col, tickangle: -45},
-                                  yaxis: {gridcolor: 'rgba(255,255,255,0.1)', title: insights.line_chart.num_col},
-                                  margin: { b: 80, t: 20 }
-                                }}
-                                config={{displayModeBar: false}}
-                              />
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      ) : (
-                        <Card className="glass-card h-100"><Card.Body>No line chart insight generated.</Card.Body></Card>
-                      )}
-                    </Col>
-                  </Row>
-                </>
-              ) : null}
-            </div>
-          )}
-
         </Container>
       </div>
 

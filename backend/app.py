@@ -763,5 +763,119 @@ def export_powerbi(current_user, dataset_id):
 def embed_powerbi(current_user, dataset_id):
     return jsonify({'embed_url': 'https://app.powerbi.com/reportEmbed?reportId=placeholder', 'message': 'Requires Power BI Embedded SDK configuration.'})
 
+@app.route('/api/datasets/<int:dataset_id>/chart', methods=['POST'])
+@token_required
+@permission_required('can_view_data')
+def get_chart_data(current_user, dataset_id):
+    ds = Dataset.query.filter_by(id=dataset_id, user_id=current_user.id).first()
+    if not ds:
+        return jsonify({'message': 'Dataset not found or access denied'}), 404
+        
+    if not os.path.exists(ds.file_path):
+        return jsonify({'message': 'File missing'}), 404
+        
+    data = request.json
+    chart_type = data.get('chart_type', 'bar')
+    x_col = data.get('x_col')
+    y_col = data.get('y_col')
+    group_col = data.get('group_col')
+    agg_func = data.get('agg_func', 'sum')
+    filters = data.get('filters', []) # list of {col, op, val}
+    
+    try:
+        df = load_df(ds.file_path)
+        
+        # Apply filters
+        for f in filters:
+            col, op, val = f.get('col'), f.get('op'), f.get('val')
+            if col and col in df.columns:
+                try:
+                    if op == '==': df = df[df[col] == val]
+                    elif op == '!=': df = df[df[col] != val]
+                    elif op == '>': df = df[df[col] > float(val)]
+                    elif op == '<': df = df[df[col] < float(val)]
+                    elif op == 'in': df = df[df[col].isin(val)]
+                except: pass
+                
+        if df.empty:
+            return jsonify({'message': 'No data after filtering', 'data': {}})
+            
+        result = {}
+        
+        # Handle correlation matrix specifically
+        if chart_type == 'correlation':
+            num_cols = df.select_dtypes(include=['number']).columns
+            if len(num_cols) < 2:
+                return jsonify({'message': 'Need at least 2 numeric columns for correlation'}), 400
+            corr = df[num_cols].corr().fillna(0)
+            result = {
+                'x': list(corr.columns),
+                'y': list(corr.index),
+                'z': corr.values.tolist(),
+                'type': 'heatmap'
+            }
+            return jsonify({'data': result})
+            
+        # Basic Validation
+        if not x_col or x_col not in df.columns:
+            return jsonify({'message': 'Invalid X column'}), 400
+            
+        # Chart grouping and aggregation
+        if chart_type in ['bar', 'line', 'pie', 'donut', 'area', 'treemap']:
+            if not y_col or y_col not in df.columns:
+                # If no Y col, just do a count of X
+                grouped = df.groupby(x_col).size().reset_index(name='count')
+                y_col_act = 'count'
+            else:
+                if agg_func == 'sum': grouped = df.groupby(x_col)[y_col].sum().reset_index()
+                elif agg_func == 'mean': grouped = df.groupby(x_col)[y_col].mean().reset_index()
+                elif agg_func == 'min': grouped = df.groupby(x_col)[y_col].min().reset_index()
+                elif agg_func == 'max': grouped = df.groupby(x_col)[y_col].max().reset_index()
+                else: grouped = df.groupby(x_col)[y_col].count().reset_index()
+                y_col_act = y_col
+                
+            grouped = grouped.dropna().sort_values(by=y_col_act, ascending=False).head(100) # Limit to 100 for performance
+            
+            result = {
+                'x': grouped[x_col].tolist(),
+                'y': grouped[y_col_act].tolist()
+            }
+            
+            if chart_type == 'pie' or chart_type == 'donut':
+                result = {
+                    'labels': grouped[x_col].tolist(),
+                    'values': grouped[y_col_act].tolist(),
+                    'type': 'pie'
+                }
+                if chart_type == 'donut':
+                    result['hole'] = 0.4
+                    
+        elif chart_type in ['scatter', 'box', 'histogram']:
+            # For these, we might want raw data or grouped depending on size
+            # Limit to 1000 rows to prevent massive payloads
+            sample = df.head(1000)
+            result = {
+                'x': sample[x_col].tolist(),
+            }
+            if y_col and y_col in df.columns:
+                result['y'] = sample[y_col].tolist()
+                
+        # Heatmap
+        elif chart_type == 'heatmap':
+            if not y_col or y_col not in df.columns or not group_col or group_col not in df.columns:
+                return jsonify({'message': 'Heatmap requires X, Y, and Group (Z) columns'}), 400
+            pivot = df.pivot_table(values=group_col, index=y_col, columns=x_col, aggfunc=agg_func).fillna(0)
+            result = {
+                'x': list(pivot.columns),
+                'y': list(pivot.index),
+                'z': pivot.values.tolist(),
+                'type': 'heatmap'
+            }
+            
+        return jsonify({'data': result})
+        
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=5000)
