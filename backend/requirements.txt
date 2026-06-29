@@ -23,3 +23,5 @@ typing_extensions==4.15.0
 tzdata==2026.2
 Werkzeug==3.1.8
 openpyxl==3.1.5
+Flask-Migrate==4.0.7
+psycopg2-binary==2.9.10

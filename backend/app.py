@@ -7,6 +7,7 @@ import datetime
 from functools import wraps
 import pandas as pd
 import os
+from flask_migrate import Migrate
 import shutil
 import uuid
 from dotenv import load_dotenv
@@ -24,16 +25,26 @@ app = Flask(__name__)
 CORS(app)
 bcrypt = Bcrypt(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+# Database configuration (PostgreSQL production / SQLite fallback)
+database_url = os.getenv('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+if not database_url:
+    # Use a persistent local file instead of purely ephemeral memory or arbitrary working dir
+    os.makedirs(app.instance_path, exist_ok=True)
+    database_url = 'sqlite:///' + os.path.join(app.instance_path, 'app.db')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.getenv(
-    "SECRET_KEY",
-    "change-this-in-production"
-)
-UPLOAD_FOLDER = os.path.join(app.instance_path, 'uploads')
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "change-this-in-production")
+
+# Permanent Upload Storage (Read from .env or fallback to local instance storage)
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(app.instance_path, 'uploads'))
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # Models
 class User(db.Model):
@@ -110,14 +121,22 @@ def permission_required(permission):
         return decorated_function
     return decorator
 
-# Setup Database
-with app.app_context():
-    db.create_all()
+# CLI Command for initializing admin user
+import click
+from flask.cli import with_appcontext
+
+@app.cli.command("init-admin")
+@with_appcontext
+def init_admin():
+    """Create initial admin user."""
     if not User.query.filter_by(role='Admin').first():
         hashed_pw = bcrypt.generate_password_hash('admin123').decode('utf-8')
         admin = User(username='admin', password_hash=hashed_pw, role='Admin', department='IT', clearance_level=5)
         db.session.add(admin)
         db.session.commit()
+        print("Admin user created.")
+    else:
+        print("Admin user already exists.")
     
 @app.route('/')
 def home():
