@@ -172,7 +172,7 @@ export default function Dashboard({ user, setUser }) {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingTemp}
             >
-              {uploadingTemp ? 'Uploading...' : 'Temp Upload'}
+              {uploadingTemp ? 'Uploading...' : 'Upload'}
             </Button>
           </div>
         </AppNavbar>
