@@ -274,7 +274,7 @@ export default function Dashboard({ user, setUser }) {
                               type: 'bar',
                               marker: {
                                 color: insights.bar_chart.values,
-                                colorscale: 'Tealgrn'
+                                colorscale: [[0, '#7ED7F7'], [1, '#5A4FD6']]
                               },
                             },
                           ]}
@@ -310,8 +310,8 @@ export default function Dashboard({ user, setUser }) {
                               y: insights.line_chart.values,
                               type: 'scatter',
                               mode: 'lines+markers',
-                              marker: {color: '#14b8a6'},
-                              line: {color: '#10b981', width: 3}
+                              marker: {color: '#5A4FD6'},
+                              line: {color: '#7ED7F7', width: 3}
                             },
                           ]}
                           layout={{ 

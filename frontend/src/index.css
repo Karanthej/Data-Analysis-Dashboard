@@ -1,14 +1,42 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --bg-color: #0b1120; /* Midnight Blue */
-  --card-bg: rgba(15, 23, 42, 0.4); /* Slate very dark glass */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --accent-primary: #14b8a6; /* Teal */
-  --accent-secondary: #10b981; /* Emerald */
-  --border-color: rgba(20, 184, 166, 0.15);
-  --glow-border: rgba(20, 184, 166, 0.5);
+  /* Supporting Neutral Palette */
+  --bg-color: #15171F;
+  --card-bg: rgba(29, 34, 48, 0.6);
+  --card-bg-elevated: #262C3D;
+  --text-primary: #F3F5FA;
+  --text-secondary: #B4BDD1;
+  --text-disabled: #7B8499;
+  --border-color: #373F55;
+  --divider-color: #454F67;
+
+  /* Brand Palette */
+  --brand-primary: #5A4FD6;
+  --brand-secondary: #8B6EF8;
+  --brand-tertiary: #7ED7F7;
+  --brand-accent: #D98AF7;
+
+  /* Semantic Colors */
+  --semantic-success: #2FCB8F;
+  --semantic-warning: #F3B44E;
+  --semantic-error: #EF5D67;
+  --semantic-info: #4BA9F5;
+
+  /* Data Visualization Palette */
+  --chart-1: #5A4FD6;
+  --chart-2: #7ED7F7;
+  --chart-3: #D98AF7;
+  --chart-4: #2FCB8F;
+  --chart-5: #F3B44E;
+  --chart-6: #EF5D67;
+  --chart-7: #7F8CFF;
+  --chart-8: #A4E5D9;
+
+  /* UI specific */
+  --accent-primary: var(--brand-primary);
+  --accent-secondary: var(--brand-secondary);
+  --glow-border: rgba(90, 79, 214, 0.5);
 }
 
 body {
@@ -19,9 +47,9 @@ body {
   min-height: 100vh;
   /* Premium Aurora Mesh Background */
   background-image: 
-    radial-gradient(ellipse at 20% 40%, rgba(20, 184, 166, 0.15), transparent 40%),
-    radial-gradient(ellipse at 80% 60%, rgba(16, 185, 129, 0.1), transparent 40%),
-    radial-gradient(circle at 50% 10%, rgba(6, 182, 212, 0.05), transparent 30%);
+    radial-gradient(ellipse at 20% 40%, rgba(90, 79, 214, 0.15), transparent 40%),
+    radial-gradient(ellipse at 80% 60%, rgba(139, 110, 248, 0.1), transparent 40%),
+    radial-gradient(circle at 50% 10%, rgba(126, 215, 247, 0.05), transparent 30%);
   background-attachment: fixed;
   background-size: cover;
 }
@@ -66,7 +94,7 @@ body {
 .glass-card:hover {
   transform: translateY(-8px);
   border-color: var(--glow-border) !important;
-  box-shadow: 0 15px 45px rgba(20, 184, 166, 0.15);
+  box-shadow: 0 15px 45px rgba(90, 79, 214, 0.15);
 }
 
 .glass-card .card-title {
@@ -77,7 +105,7 @@ body {
 
 /* Custom Navbar */
 .custom-navbar {
-  background: rgba(11, 17, 32, 0.8) !important;
+  background: rgba(21, 23, 31, 0.8) !important;
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-color);
   padding: 1rem 0;
@@ -105,7 +133,7 @@ body {
 }
 
 .form-control:focus, .form-select:focus {
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(90, 79, 214, 0.25) !important;
   border-color: var(--accent-primary) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
@@ -118,7 +146,7 @@ body {
 
 /* Glowing Buttons */
 .btn-primary {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.8), rgba(16, 185, 129, 0.8)) !important;
+  background: linear-gradient(135deg, rgba(90, 79, 214, 0.8), rgba(139, 110, 248, 0.8)) !important;
   border: none !important;
   border-radius: 12px;
   color: #fff !important;
@@ -126,12 +154,12 @@ body {
   letter-spacing: 0.5px;
   padding: 0.7rem 1.8rem;
   transition: all 0.3s ease !important;
-  box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 4px 15px rgba(90, 79, 214, 0.3);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 1), rgba(16, 185, 129, 1)) !important;
-  box-shadow: 0 8px 25px rgba(20, 184, 166, 0.5);
+  background: linear-gradient(135deg, rgba(90, 79, 214, 1), rgba(139, 110, 248, 1)) !important;
+  box-shadow: 0 8px 25px rgba(90, 79, 214, 0.5);
   transform: translateY(-2px);
 }
 
@@ -142,8 +170,8 @@ body {
   border-radius: 12px;
 }
 .btn-outline-primary:hover {
-  background: rgba(20, 184, 166, 0.1) !important;
-  box-shadow: 0 0 15px rgba(20, 184, 166, 0.3);
+  background: rgba(90, 79, 214, 0.1) !important;
+  box-shadow: 0 0 15px rgba(90, 79, 214, 0.3);
 }
 
 /* Add table styles ... */
