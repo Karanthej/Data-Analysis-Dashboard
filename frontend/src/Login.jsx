@@ -103,10 +103,10 @@ export default function Login({ setUser }) {
 
         <Row className="justify-content-center">
           <Col md={5} lg={4}>
-            <Card className="glass-card p-4" style={{ background: 'rgba(5, 5, 5, 0.7) !important' }}>
+            <Card className="glass-card p-4">
               <Card.Body>
                 <div className="text-center mb-4">
-                  <h3 style={{ fontWeight: 700, color: 'white' }}>
+                  <h3 style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                     {isLogin ? 'Welcome Back' : 'Create Account'}
                   </h3>
                 </div>
@@ -132,7 +132,7 @@ export default function Login({ setUser }) {
                     {isLogin ? "Don't have an account? " : "Already have an account? "}
                   </span>
                   <span 
-                    style={{ color: 'var(--accent-blue)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }} 
+                    style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }} 
                     onClick={() => { setIsLogin(!isLogin); setError(''); setSuccessMsg(''); }}
                   >
                     {isLogin ? 'Sign Up' : 'Log In'}
