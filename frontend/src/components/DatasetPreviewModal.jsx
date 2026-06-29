@@ -44,7 +44,7 @@ export default function DatasetPreviewModal({ show, onHide, dataset, user }) {
               <Col md={3}>
                 <Card className="glass-card text-center h-100">
                   <Card.Body>
-                    <div className="text-muted small text-uppercase">Total Rows</div>
+                    <div className="text-white small text-uppercase fw-bold">Total Rows</div>
                     <h3 className="text-primary mt-2">{data.rows_count.toLocaleString()}</h3>
                   </Card.Body>
                 </Card>
@@ -52,7 +52,7 @@ export default function DatasetPreviewModal({ show, onHide, dataset, user }) {
               <Col md={3}>
                 <Card className="glass-card text-center h-100">
                   <Card.Body>
-                    <div className="text-muted small text-uppercase">Total Columns</div>
+                    <div className="text-white small text-uppercase fw-bold">Total Columns</div>
                     <h3 className="text-primary mt-2">{data.cols_count.toLocaleString()}</h3>
                   </Card.Body>
                 </Card>
@@ -60,7 +60,7 @@ export default function DatasetPreviewModal({ show, onHide, dataset, user }) {
               <Col md={3}>
                 <Card className="glass-card text-center h-100">
                   <Card.Body>
-                    <div className="text-muted small text-uppercase">Missing Values</div>
+                    <div className="text-white small text-uppercase fw-bold">Missing Values</div>
                     <h3 className="text-warning mt-2">{data.missing_values_total.toLocaleString()}</h3>
                   </Card.Body>
                 </Card>
@@ -68,7 +68,7 @@ export default function DatasetPreviewModal({ show, onHide, dataset, user }) {
               <Col md={3}>
                 <Card className="glass-card text-center h-100">
                   <Card.Body>
-                    <div className="text-muted small text-uppercase">Duplicate Rows</div>
+                    <div className="text-white small text-uppercase fw-bold">Duplicate Rows</div>
                     <h3 className="text-danger mt-2">{data.duplicates.toLocaleString()}</h3>
                   </Card.Body>
                 </Card>
