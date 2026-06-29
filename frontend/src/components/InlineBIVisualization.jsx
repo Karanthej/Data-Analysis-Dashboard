@@ -95,13 +95,15 @@ export default function InlineBIVisualization({ dataset, user, onClose }) {
   
   const barLayout = {
     ...baseLayout,
-    xaxis: {gridcolor: 'rgba(255,255,255,0.1)'},
-    yaxis: {gridcolor: 'rgba(255,255,255,0.1)'},
+    xaxis: {gridcolor: 'rgba(255,255,255,0.1)', automargin: true},
+    yaxis: {gridcolor: 'rgba(255,255,255,0.1)', automargin: true},
   };
   
   const funnelLayout = {
     ...baseLayout,
-    margin: { b: 40, t: 40, l: 120, r: 20 },
+    margin: { b: 40, t: 40, l: 20, r: 20 },
+    yaxis: { automargin: true },
+    xaxis: { automargin: true }
   };
 
   if (!dataset) return null;
@@ -188,7 +190,7 @@ export default function InlineBIVisualization({ dataset, user, onClose }) {
                       layout={barLayout}
                       useResizeHandler={true}
                       style={{ width: "100%", height: "100%" }}
-                      config={{ displayModeBar: true, displaylogo: false, responsive: true }}
+                      config={{ displayModeBar: true, displaylogo: false, responsive: true, modeBarButtonsToRemove: ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'resetScale2d'] }}
                     />
                   </div>
                 </Card.Body>
@@ -223,7 +225,7 @@ export default function InlineBIVisualization({ dataset, user, onClose }) {
                       layout={funnelLayout}
                       useResizeHandler={true}
                       style={{ width: "100%", height: "100%" }}
-                      config={{ displayModeBar: true, displaylogo: false, responsive: true }}
+                      config={{ displayModeBar: true, displaylogo: false, responsive: true, modeBarButtonsToRemove: ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'resetScale2d'] }}
                     />
                   </div>
                 </Card.Body>

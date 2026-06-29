@@ -116,7 +116,7 @@ export default function AdvancedAnalytics({ dataset, user, onClose }) {
                   layout={commonLayout}
                   useResizeHandler={true}
                   style={{ width: "100%", minHeight: "400px" }}
-                  config={{ displayModeBar: true, displaylogo: false }}
+                  config={{ displayModeBar: true, displaylogo: false, responsive: true, modeBarButtonsToRemove: ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'resetScale2d'] }}
                 />
               </Card.Body>
             </Card>
@@ -130,7 +130,7 @@ export default function AdvancedAnalytics({ dataset, user, onClose }) {
                   layout={commonLayout}
                   useResizeHandler={true}
                   style={{ width: "100%", minHeight: "400px" }}
-                  config={{ displayModeBar: true, displaylogo: false }}
+                  config={{ displayModeBar: true, displaylogo: false, responsive: true, modeBarButtonsToRemove: ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'resetScale2d'] }}
                 />
               </Card.Body>
             </Card>
